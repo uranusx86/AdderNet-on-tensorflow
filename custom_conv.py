@@ -28,6 +28,14 @@ class L1Conv2D(tf.keras.layers.Layer):
     self.subtract_layer = tf.keras.layers.Subtract()
 
   def call(self, inputs):
+    def custom_subgraph_gradient(forward_pass_graph, backward_pass_graph):
+      '''
+      A trick from [Sergey Ioffe](http://stackoverflow.com/a/36480182)
+      a op that behave as f(x) in forward mode,
+      but as g(x) in the backward mode.
+      '''
+      return backward_pass_graph + tf.stop_gradient(forward_pass_graph - backward_pass_graph)
+
     # im2col
     inputs_patches = tf.image.extract_patches(inputs,
                           sizes=[1, self.kernel_h, self.kernel_w, 1],
@@ -38,6 +46,9 @@ class L1Conv2D(tf.keras.layers.Layer):
 
     kernel_reshape = tf.reshape(self.kernel, [1, 1, 1, self.kernel_h*self.kernel_w*self.kernel_in_ch, self.kernel_out_ch])
 
-    l1_distance = tf.abs(self.subtract_layer([inputs_patches, kernel_reshape]))
-    result = tf.reduce_sum(l1_distance, 3)
+    differ = self.subtract_layer([inputs_patches, kernel_reshape])
+    forward = -tf.abs(differ)   # L1 norm
+    backward = -differ**2       # L2 norm
+    l1_fd_l2_bd = custom_subgraph_gradient(forward, backward)
+    result = tf.reduce_sum(l1_fd_l2_bd, 3)
     return result
