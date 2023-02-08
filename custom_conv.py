@@ -52,3 +52,34 @@ class L1Conv2D(tf.keras.layers.Layer):
     l1_fd_l2_bd = custom_subgraph_gradient(forward, backward)
     result = tf.reduce_sum(l1_fd_l2_bd, 3)
     return result
+
+class L1Dense(tf.keras.layers.Layer):
+  def __init__(self, out_dims):
+    super(L1Dense, self).__init__()
+    self.out_dims = out_dims
+
+  def build(self, input_shape):
+    self.in_dims = input_shape[-1]
+    self.kernel = self.add_weight("kernel",
+                    shape=[self.in_dims, self.out_dims])
+    self.subtract_layer = tf.keras.layers.Subtract()
+    self.input_reshape = tf.keras.layers.Reshape([self.in_dims, 1])
+
+  def call(self, inputs):
+    def custom_subgraph_gradient(forward_pass_graph, backward_pass_graph):
+      '''
+      A trick from [Sergey Ioffe](http://stackoverflow.com/a/36480182)
+      a op that behave as f(x) in forward mode,
+      but as g(x) in the backward mode.
+      '''
+      return backward_pass_graph + tf.stop_gradient(forward_pass_graph - backward_pass_graph)
+
+    inputs_reshape = self.input_reshape(inputs)
+    kernel_reshape = tf.reshape(self.kernel, [1, self.in_dims, self.out_dims])
+
+    differ = self.subtract_layer([inputs_reshape, kernel_reshape])
+    forward = -tf.abs(differ)   # L1 norm
+    backward = -differ**2       # L2 norm
+    l1_fd_l2_bd = custom_subgraph_gradient(forward, backward)
+    result = tf.reduce_sum(l1_fd_l2_bd, 1)
+    return result

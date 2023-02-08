@@ -1,45 +1,53 @@
 import tensorflow as tf
 
-from custom_conv import L1Conv2D
+from custom_conv import L1Conv2D, L1Dense
 
 def main():
     # dataset
     mnist = tf.keras.datasets.mnist
     (x_train, y_train), (x_test, y_test) = mnist.load_data()
-    x_train, x_test = x_train / 255.0, x_test / 255.0
+    mean, std = np.mean(x_train), np.std(x_train)
+    x_train, x_test = (x_train-mean)/std, (x_test-mean)/std
 
-    model = tf.keras.models.Sequential([
-      tf.keras.layers.Input(shape=(28, 28)),
-      tf.keras.layers.Reshape((28,28,1)),
-      # 12*12
-      L1Conv2D(kernel_size=[5,5,1,6], strides=[2,2], padding='VALID'),
-      tf.keras.layers.BatchNormalization(),
-      tf.keras.layers.ReLU(),
-      # 5*5
-      L1Conv2D(kernel_size=[3,3,6,8], strides=[2,2], padding='VALID'),
-      tf.keras.layers.BatchNormalization(),
-      tf.keras.layers.ReLU(),
-      # 2*2
-      L1Conv2D(kernel_size=[3,3,8,10], strides=[2,2], padding='VALID'),
-      tf.keras.layers.BatchNormalization(),
-      tf.keras.layers.ReLU(),
-      tf.keras.layers.Dropout(0.2),
-      # 1*1
-      tf.keras.layers.AveragePooling2D((2,2)),
-      tf.keras.layers.Flatten()
+    lenet_5bn = tf.keras.models.Sequential([
+          tf.keras.layers.Input(shape=(28, 28)),
+          tf.keras.layers.Reshape((28, 28, 1)),
+          tf.keras.layers.Resizing(32, 32),
+          # 28*28
+          L1Conv2D(kernel_size=[5,5,1,6], strides=[1,1], padding='VALID'),
+          tf.keras.layers.BatchNormalization(),
+          tf.keras.layers.Activation('tanh'),
+          # 14*14
+          tf.keras.layers.MaxPooling2D((2,2)),
+          # 10*10
+          L1Conv2D(kernel_size=[5,5,6,16], strides=[1,1], padding='VALID'),
+          tf.keras.layers.BatchNormalization(),
+          tf.keras.layers.Activation('tanh'),
+          # 5*5
+          tf.keras.layers.MaxPooling2D((2,2)),
+          # 1*1
+          L1Conv2D(kernel_size=[5,5,16,120], strides=[1,1], padding='VALID'),
+          tf.keras.layers.BatchNormalization(),
+          tf.keras.layers.Activation('tanh'),
+          tf.keras.layers.Flatten(),
+          L1Dense(84),
+          tf.keras.layers.BatchNormalization(),
+          tf.keras.layers.Activation('tanh'),
+          L1Dense(10)
     ])
+    lenet_5bn.summary()
 
     # build model
     loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
-    model.compile(optimizer='adam',
+    lenet_5bn.compile(optimizer=tf.keras.optimizers.Adam(clipvalue=1.0),
             loss=loss_fn,
             metrics=['accuracy'])
 
     # training
-    model.fit(x_train, y_train, epochs=20)
+    lenet_5bn.fit(x_train, y_train, batch_size=256, epochs=20)
 
     # validation
-    model.evaluate(x_test,  y_test, verbose=2)
+    lenet_5bn.evaluate(x_test,  y_test, verbose=2)
 
 if __name__ == '__main__':
     main()
