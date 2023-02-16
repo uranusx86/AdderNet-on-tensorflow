@@ -39,12 +39,16 @@ def main():
 
     # build model
     loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
-    lenet_5bn.compile(optimizer=tf.keras.optimizers.Adam(clipvalue=1.0),
+    # epoches*step_per_epoch
+    epochs = 20
+    batch_size = 256
+    lr = tf.keras.optimizers.schedules.CosineDecay(initial_learning_rate=0.1, decay_steps=epochs*np.ceil(len(x_train)/batch_size).astype(np.int32))
+    lenet_5bn.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=lr, clipvalue=1.0),
             loss=loss_fn,
             metrics=['accuracy'])
 
     # training
-    lenet_5bn.fit(x_train, y_train, batch_size=256, epochs=20)
+    lenet_5bn.fit(x_train, y_train, batch_size=batch_size, epochs=epochs)
 
     # validation
     lenet_5bn.evaluate(x_test,  y_test, verbose=2)
